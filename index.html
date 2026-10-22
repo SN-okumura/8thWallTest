@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>8th Wall WebAR - VRMモデル設置・操作</title>
+
+  <!-- スマホの画面回転・フルスクリーン対応メタタグ -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
+
+  <!-- A-Frame (8th Wall最適化版 8frame) -->
+  <script src="https://cdn.8thwall.com/web/aframe/8frame-1.4.1.min.js"></script>
+
+  <!-- XR Extras (ローディング画面、タップジェスチャーなどのUI支援ライブラリ) -->
+  <script src="https://cdn.8thwall.com/web/xrextras/xrextras.js"></script>
+
+  <!-- 8th Wall WebAR エンジン (※実稼働時は必要に応じて自身のAppKeyをURL末尾に付与してください) -->
+  <script async src="https://apps.8thwall.com/xrweb"></script>
+
+  <!-- 画面タップでのモデル設置およびピンチ拡縮・回転を行うA-Frameコンポーネント -->
+  <script>
+    // タップで平面上にオブジェクトを配置するコンポーネント
+    AFRAME.registerComponent('tap-to-place', {
+      init: function () {
+        const scene = this.el.sceneEl;
+        const targetModel = document.getElementById('ar-model');
+
+        // 画面がタップされたときの処理
+        scene.addEventListener('click', (event) => {
+          // タップ位置のレイキャスト（地面との交点）を取得
+          const touchPoint = event.detail.intersection ? event.detail.intersection.point : null;
+
+          if (touchPoint) {
+            // タップした地面の座標にモデルを移動
+            targetModel.setAttribute('position', touchPoint);
+            targetModel.setAttribute('visible', 'true');
+          }
+        });
+      }
+    });
+
+    // 2本指での拡大縮小（ピンチ）および回転操作を行うコンポーネント
+    AFRAME.registerComponent('gesture-manipulation', {
+      schema: {
+        minScale: { default: 0.1 },
+        maxScale: { default: 5.0 }
+      },
+      init: function () {
+        this.touchStartDist = 0;
+        this.touchStartAngle = 0;
+        this.startScale = { x: 1, y: 1, z: 1 };
+        this.startRotation = { x: 0, y: 0, z: 0 };
+
+        const handleTouchStart = (e) => {
+          if (e.touches.length === 2) {
+            // 2本指の距離を計算（ピンチ開始）
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            this.touchStartDist = Math.sqrt(dx * dx + dy * dy);
+
+            // 2本指の角度を計算（回転開始）
+            this.touchStartAngle = Math.atan2(dy, dx) * (180 / Math.PI);
+
+            this.startScale = { ...this.el.getAttribute('scale') };
+            this.startRotation = { ...this.el.getAttribute('rotation') };
+          }
+        };
+
+        const handleTouchMove = (e) => {
+          if (e.touches.length === 2) {
+            // 拡大縮小処理
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const scaleFactor = dist / this.touchStartDist;
+
+            let newScale = this.startScale.x * scaleFactor;
+            newScale = Math.min(Math.max(newScale, this.data.minScale), this.data.maxScale);
+            this.el.setAttribute('scale', { x: newScale, y: newScale, z: newScale });
+
+            // 回転処理 (Y軸周り)
+            const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+            const angleDiff = angle - this.touchStartAngle;
+            this.el.setAttribute('rotation', {
+              x: this.startRotation.x,
+              y: this.startRotation.y - angleDiff,
+              z: this.startRotation.z
+            });
+          }
+        };
+
+        window.addEventListener('touchstart', handleTouchStart);
+        window.addEventListener('touchmove', handleTouchMove);
+      }
+    });
+  </script>
+
+  <style>
+    /* ARビューの全画面表示用スタイル */
+    body {
+      margin: 0;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+      user-select: none;
+    }
+    /* 案内ガイド用オーバーレイUI */
+    #instructions {
+      position: absolute;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.7);
+      color: #ffffff;
+      padding: 10px 20px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-family: sans-serif;
+      pointer-events: none;
+      z-index: 10;
+      text-align: center;
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ユーザー案内UI -->
+  <div id="instructions">床をタップして設置 / 2本指で回転・拡縮</div>
+
+  <!-- A-Frame シーン (xrwebコンポーネントで8th Wall WebARを起動) -->
+  <a-scene
+    xrweb="allowedDevices: any"
+    xrextras-loading
+    xrextras-runtime-error
+    tap-to-place>
+
+    <!-- アセット管理: 3Dモデルなどの読み込み定義 -->
+    <a-assets>
+      <!-- VRMモデルはglTF形式互換として読み込めます。パスは適宜変更してください -->
+      <a-asset-item id="vrm-model" src="robot.vrm"></a-asset-item>
+    </a-assets>
+
+    <!-- ARカメラ設定 -->
+    <a-camera
+      position="0 4 4"
+      raycaster="objects: .cantap"
+      cursor="fuse: false; rayOrigin: mouse;">
+    </a-camera>
+
+    <!-- 環境光と平行光源 -->
+    <a-light type="ambient" intensity="0.8"></a-light>
+    <a-light type="directional" position="1 4 2" intensity="1.0" castShadow="true"></a-light>
+
+    <!-- 地面検出用レイキャストターゲット（透明なプレーン） -->
+    <a-plane
+      class="cantap"
+      position="0 0 0"
+      rotation="-90 0 0"
+      width="1000"
+      height="1000"
+      material="opacity: 0; transparent: true">
+    </a-plane>
+
+    <!-- 設置される3Dモデル（初期状態は非表示） -->
+    <a-entity
+      id="ar-model"
+      gltf-model="#vrm-model"
+      position="0 0 0"
+      scale="1 1 1"
+      visible="false"
+      gesture-manipulation>
+    </a-entity>
+
+  </a-scene>
+
+</body>
+</html>
