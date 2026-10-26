@@ -1,0 +1,12 @@
+<a-scene 
+  xrextras-loading 
+  xrextras-runtime-error 
+  renderer="colorManagement: true;" 
+  ar-raycaster="objects: [data-raycastable]">
+  
+  <!-- カメラに bullet-shooter コンポーネントをアタッチ -->
+  <a-camera position="0 1.6 0" bullet-shooter="speed: 12; maxDistance: 15;"></a-camera>
+
+  <!-- 環境光やステージ等 -->
+  <a-light type="directional" intensity="0.8" position="1 4 2"></a-light>
+</a-scene>
